@@ -1,1 +1,66 @@
 
+const ZeniqToken = artifacts.require('ZeniqToken');
+const RealEstateContract = artifacts.require('RealEstateContract');
+
+module.exports = function(deployer) {
+  deployer.deploy(ZeniqToken, '1000000000000000000000000')  // Suponiendo que la oferta inicial es de 1 millón de tokens.
+    .then(() => {
+      return deployer.deploy(RealEstateContract, ZeniqToken.address);
+    });
+};
+
+
+require('dotenv').config();
+const ZeniqToken = artifacts.require('ZeniqToken');
+const RealEstateContract = artifacts.require('RealEstateContract');
+
+module.exports = function(deployer) {
+  deployer.deploy(ZeniqToken, process.env.INITIAL_SUPPLY)
+    .then(() => {
+      return deployer.deploy(RealEstateContract, ZeniqToken.address);
+    })
+    .then(() => {
+      if (deployer.network === 'ropsten') {
+        return deployer.deploy(RealEstateContract, ZeniqToken.address, { gas: 5000000 });
+      }
+    })
+    .then(() => {
+      if (deployer.network === 'mainnet') {
+        return deployer.deploy(RealEstateContract, ZeniqToken.address, { gas: 10000000 });
+      }
+    })
+    .then(() => {
+      if (deployer.network === 'mainnet' || deployer.network === 'ropsten') {
+        console.log("Don't forget to verify your contracts on Etherscan using truffle-plugin-verify!");
+      }
+    })
+    .catch(error => {
+      console.error(error);
+      process.exit(1); // Revert deployment in case of error
+    });
+};
+
+const Migrations = artifacts.require("Migrations");
+const ZeniqToken = artifacts.require("ZeniqToken");
+const RealEstateContract = artifacts.require("RealEstateContract");
+
+module.exports = function (deployer, network, accounts) {
+  deployer.then(async () => {
+    if (network === "development") {
+      // Migrate the Migrations contract
+      await deployer.deploy(Migrations);
+      console.log("Migrations contract deployed at address:", Migrations.address);
+
+      // Migrate the ZeniqToken contract
+      await deployer.deploy(ZeniqToken, "1000000000000000000000000");
+      console.log("ZeniqToken contract deployed at address:", ZeniqToken.address);
+
+      // Migrate the RealEstateContract contract
+      await deployer.deploy(RealEstateContract, ZeniqToken.address);
+      console.log("RealEstateContract deployed at address:", RealEstateContract.address);
+    } else {
+      console.log("Please specify deployment steps for the", network, "network.");
+    }
+  });
+};
+
