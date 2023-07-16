@@ -1,5 +1,6 @@
 //This folder will contain all the necessary smart contracts for the project. 
 
+//MARKETPLACE VRE
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
@@ -10,3 +11,226 @@ contract Token is ERC20 {
         _mint(msg.sender, initialSupply);
     }
 }
+
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+
+contract VREToken is ERC20 {
+    constructor() ERC20("VRE Token", "VRE") {
+        _mint(msg.sender, 1000000 * 10**decimals());
+    }
+}
+
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+import "./VREToken.sol";
+
+contract VREMarketplace {
+    struct Item {
+        uint256 id;
+        string name;
+        uint256 price;
+        address seller;
+        bool sold;
+    }
+
+    mapping(uint256 => Item) public items;
+    uint256 public itemCount;
+    VREToken public vreToken;
+
+    event ItemListed(uint256 indexed itemId, string name, uint256 price, address indexed seller);
+    event ItemSold(uint256 indexed itemId, address indexed buyer);
+
+    constructor(address _vreTokenAddress) {
+        vreToken = VREToken(_vreTokenAddress);
+    }
+
+    function listNewItem(string memory _name, uint256 _price) external {
+        itemCount++;
+        items[itemCount] = Item(itemCount, _name, _price, msg.sender, false);
+        emit ItemListed(itemCount, _name, _price, msg.sender);
+    }
+
+    function buyItem(uint256 _itemId) external {
+        require(_itemId <= itemCount, "Invalid item ID");
+        Item storage item = items[_itemId];
+        require(!item.sold, "Item already sold");
+        require(vreToken.balanceOf(msg.sender) >= item.price, "Insufficient funds");
+
+        vreToken.transferFrom(msg.sender, item.seller, item.price);
+        item.sold = true;
+        emit ItemSold(_itemId, msg.sender);
+    }
+}
+
+//Contrato: VRETransactionManager
+//Este contrato se encarga de la gestión de transacciones seguras en el metaverso VRE.
+
+
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+contract VRETransactionManager {
+    mapping(address => uint256) public nonce;
+
+    event TransactionCreated(address indexed sender, address indexed receiver, uint256 amount, uint256 nonce);
+    event TransactionCompleted(address indexed sender, address indexed receiver, uint256 amount, uint256 nonce);
+
+    function createTransaction(address _receiver, uint256 _amount) external {
+        require(_receiver != address(0), "Invalid receiver address");
+        require(_amount > 0, "Invalid amount");
+
+        uint256 currentNonce = nonce[msg.sender];
+        nonce[msg.sender]++;
+
+        emit TransactionCreated(msg.sender, _receiver, _amount, currentNonce);
+    }
+
+    function completeTransaction(address _sender, uint256 _amount, uint256 _nonce) external {
+        require(_sender != address(0), "Invalid sender address");
+        require(_amount > 0, "Invalid amount");
+        require(nonce[_sender] == _nonce, "Invalid nonce");
+
+        nonce[_sender]++;
+
+        emit TransactionCompleted(_sender, msg.sender, _amount, _nonce);
+    }
+}
+
+//RENTAL IN VRE
+
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+import "./VREToken.sol";
+
+contract VRERental {
+    struct Rental {
+        uint256 id;
+        address landlord;
+        address tenant;
+        uint256 startTime;
+        uint256 endTime;
+        uint256 rentalPrice;
+        bool active;
+        bool paid;
+    }
+
+    mapping(uint256 => Rental) public rentals;
+    uint256 public rentalCount;
+    VREToken public vreToken;
+
+    event RentalCreated(uint256 indexed rentalId, address indexed landlord, address indexed tenant, uint256 startTime, uint256 endTime, uint256 rentalPrice);
+    event RentalPaid(uint256 indexed rentalId, address indexed tenant);
+    event RentalCompleted(uint256 indexed rentalId, address indexed landlord, address indexed tenant);
+
+    constructor(address _vreTokenAddress) {
+        vreToken = VREToken(_vreTokenAddress);
+    }
+
+    function createRental(address _tenant, uint256 _startTime, uint256 _endTime, uint256 _rentalPrice) external {
+        require(_tenant != address(0), "Invalid tenant address");
+        require(_startTime < _endTime, "Invalid rental duration");
+        require(_rentalPrice > 0, "Invalid rental price");
+
+        rentalCount++;
+        rentals[rentalCount] = Rental(rentalCount, msg.sender, _tenant, _startTime, _endTime, _rentalPrice, true, false);
+
+        emit RentalCreated(rentalCount, msg.sender, _tenant, _startTime, _endTime, _rentalPrice);
+    }
+
+    function payRental(uint256 _rentalId) external {
+        require(_rentalId <= rentalCount, "Invalid rental ID");
+        Rental storage rental = rentals[_rentalId];
+        require(msg.sender == rental.tenant, "Only tenant can pay for the rental");
+        require(rental.active, "Rental is not active");
+        require(!rental.paid, "Rental has already been paid");
+
+        require(vreToken.balanceOf(msg.sender) >= rental.rentalPrice, "Insufficient funds");
+
+        vreToken.transferFrom(msg.sender, rental.landlord, rental.rentalPrice);
+        rental.paid = true;
+
+        emit RentalPaid(_rentalId, msg.sender);
+    }
+
+    function completeRental(uint256 _rentalId) external {
+        require(_rentalId <= rentalCount, "Invalid rental ID");
+        Rental storage rental = rentals[_rentalId];
+        require(msg.sender == rental.landlord, "Only landlord can complete the rental");
+        require(rental.active, "Rental is not active");
+        require(rental.paid, "Rental has not been paid");
+
+        rental.active = false;
+
+        emit RentalCompleted(_rentalId, rental.landlord, rental.tenant);
+    }
+}
+Contrato: VREEscrow
+Este contrato actúa como un servicio de custodia para garantizar transacciones seguras en el metaverso VRE.
+
+solidity
+Copy code
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+import "./VREToken.sol";
+
+contract VREEscrow {
+    struct Escrow {
+        uint256 id;
+        address buyer;
+        address seller;
+        address arbiter;
+        uint256 amount;
+        bool paid;
+        bool released;
+    }
+
+    mapping(uint256 => Escrow) public escrows;
+    uint256 public escrowCount;
+    VREToken public vreToken;
+
+    event EscrowCreated(uint256 indexed escrowId, address indexed buyer, address indexed seller, address arbiter, uint256 amount);
+    event EscrowFundsDeposited(uint256 indexed escrowId, address indexed depositor, uint256 amount);
+    event EscrowReleased(uint256 indexed escrowId, address indexed recipient);
+    event EscrowRefunded(uint256 indexed escrowId, address indexed recipient);
+
+    constructor(address _vreTokenAddress) {
+        vreToken = VREToken(_vreTokenAddress);
+    }
+
+    function createEscrow(address _seller, address _arbiter, uint256 _amount) external {
+        require(_seller != address(0), "Invalid seller address");
+        require(_arbiter != address(0), "Invalid arbiter address");
+        require(_amount > 0, "Invalid escrow amount");
+
+        escrowCount++;
+        escrows[escrowCount] = Escrow(escrowCount, msg.sender, _seller, _arbiter, _amount, false, false);
+
+        emit EscrowCreated(escrowCount, msg.sender, _seller, _arbiter, _amount);
+    }
+
+    function depositFunds(uint256 _escrowId) external {
+        require(_escrowId <= escrowCount, "Invalid escrow ID");
+        Escrow storage escrow = escrows[_escrowId];
+        require(msg.sender == escrow.buyer, "Only buyer can deposit funds");
+        require(!escrow.paid, "Funds already deposited");
+
+        require(vreToken.balanceOf(msg.sender) >= escrow.amount, "Insufficient funds");
+
+        vreToken.transferFrom(msg.sender, address(this), escrow.amount);
+        escrow.paid = true;
+
+        emit EscrowFundsDeposited(_escrowId, msg.sender, escrow.amount);
+    }
+
+    function releaseFunds(uint256 _escrowId) external {
+        require(_escrowId <= escrowCount, "Invalid escrow ID");
+        Escrow storage escrow = escrows[_escrowId];
+        require(msg.sender == escrow.seller || msg.sender == escrow.arbiter, "Only seller or arbiter can release funds");
+        require(escrow.paid, "Funds not yet deposited");
+        require(!escrow.re
