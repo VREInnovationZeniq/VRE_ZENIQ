@@ -1,1 +1,125 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
 
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+
+contract MetaverseToken is ERC20 {
+    constructor(uint256 initialSupply) ERC20("MetaverseToken", "MTV") {
+        _mint(msg.sender, initialSupply);
+    }
+}
+
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+
+contract MetaverseAsset is ERC721 {
+    uint256 private _tokenIdCounter;
+
+    constructor() ERC721("MetaverseAsset", "MVA") {}
+
+    function createAsset(address to) public {
+        _safeMint(to, _tokenIdCounter);
+        _tokenIdCounter++;
+    }
+}
+
+npm install web3
+
+const Web3 = require('web3');
+
+if (window.ethereum) {
+    window.web3 = new Web3(window.ethereum);
+    window.ethereum.enable();
+} else {
+    console.log('Non-Ethereum browser detected. You should consider trying MetaMask!');
+}
+
+const tokenContract = new web3.eth.Contract(tokenABI, tokenAddress);
+
+// Get the total supply of tokens
+const totalSupply = await tokenContract.methods.totalSupply().call();
+
+// Transfer some tokens from the current user to another address
+const recipientAddress = '0x123...';
+const amount = web3.utils.toWei('10', 'ether'); // Convert 10 tokens to wei
+await tokenContract.methods.transfer(recipientAddress, amount).send({ from: web3.eth.defaultAccount });
+
+
+//TOKEN INTEGRATION
+
+function buyItem(uint256 itemId) public {
+    require(balanceOf(msg.sender) >= itemPrice, "Not enough tokens");
+    _burn(msg.sender, itemPrice);
+    _transferItem(msg.sender, itemId);
+}
+
+const itemId = 1; // The ID of the item to buy
+await tokenContract.methods.buyItem(itemId).send({ from: web3.eth.defaultAccount });
+
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/access/AccessControl.sol";
+
+contract MetaverseToken is ERC20, AccessControl {
+    bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+
+    mapping(uint256 => uint256) public itemPrices;
+
+    constructor(uint256 initialSupply) ERC20("MetaverseToken", "MTV") {
+        _mint(msg.sender, initialSupply);
+        _setupRole(ADMIN_ROLE, msg.sender);
+    }
+
+    function setItemPrice(uint256 itemId, uint256 price) public {
+        require(hasRole(ADMIN_ROLE, msg.sender), "Caller is not an admin");
+        itemPrices[itemId] = price;
+    }
+
+    function buyItem(uint256 itemId) public {
+        uint256 price = itemPrices[itemId];
+        require(balanceOf(msg.sender) >= price, "Not enough tokens");
+        _burn(msg.sender, price);
+        _transferItem(msg.sender, itemId);
+    }
+
+    function _transferItem(address to, uint256 itemId) internal {
+        // Implement your item transfer logic here
+    }
+}
+
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+
+contract StakingContract {
+    using SafeERC20 for ERC20;
+
+    ERC20 public stakingToken;
+    mapping(address => uint256) public stakingBalance;
+
+    constructor(address _stakingToken) {
+        stakingToken = ERC20(_stakingToken);
+    }
+
+    function stake(uint256 amount) external {
+        stakingToken.safeTransferFrom(msg.sender, address(this), amount);
+        stakingBalance[msg.sender] += amount;
+    }
+
+    function withdraw(uint256 amount) external {
+        require(stakingBalance[msg.sender] >= amount, "Not enough staked tokens");
+        stakingBalance[msg.sender] -= amount;
+        stakingToken.safeTransfer(msg.sender, amount);
+    }
+
+    function rewards(address user) public view returns (uint256) {
+        // Implement your rewards calculation here
+        return 0;
+    }
+}
