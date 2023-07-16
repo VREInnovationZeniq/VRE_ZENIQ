@@ -7,3 +7,65 @@ contract("Token", accounts => {
         assert.equal(balance, "1000000"); // Make sure this matches the initial supply.
     });
 });
+
+npm install -g truffle
+
+mkdir MyToken
+cd MyToken
+truffle init
+
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+
+contract MyToken is ERC20 {
+    constructor(uint256 initialSupply) ERC20("MyToken", "MTK") {
+        _mint(msg.sender, initialSupply);
+    }
+}
+
+const MyToken = artifacts.require("MyToken");
+
+module.exports = function(deployer) {
+  deployer.deploy(MyToken, "1000000000000000000000000");
+};
+
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+
+contract MyToken is ERC20 {
+    uint256 public dailyTransferLimit = 1000 * (10 ** 18); // Limit is 1000 tokens
+    mapping(address => uint256) public lastTransferTimestamp;
+    mapping(address => uint256) public dailyTransferAmount;
+    address public liquidityPoolAddress;
+
+    constructor(uint256 initialSupply, address _liquidityPoolAddress) ERC20("MyToken", "MTK") {
+        _mint(msg.sender, initialSupply);
+        liquidityPoolAddress = _liquidityPoolAddress;
+    }
+
+    function transfer(address recipient, uint256 amount) public override returns (bool) {
+        require(amount <= dailyTransferLimit, "Transfer amount exceeds daily limit");
+        require(now - lastTransferTimestamp[msg.sender] > 1 days || dailyTransferAmount[msg.sender] + amount <= dailyTransferLimit, "Daily transfer limit reached");
+
+        dailyTransferAmount[msg.sender] += amount;
+        lastTransferTimestamp[msg.sender] = now;
+
+        return super.transfer(recipient, amount);
+    }
+
+    function transferFrom(address sender, address recipient, uint256 amount) public override returns (bool) {
+        require(amount <= dailyTransferLimit, "Transfer amount exceeds daily limit");
+        require(now - lastTransferTimestamp[sender] > 1 days || dailyTransferAmount[sender] + amount <= dailyTransferLimit, "Daily transfer limit reached");
+
+        dailyTransferAmount[sender] += amount;
+        lastTransferTimestamp[sender] = now;
+
+        return super.transferFrom(sender, recipient, amount);
+    }
+
+    // Other functions related to liquidity pool and additional features...
+}
